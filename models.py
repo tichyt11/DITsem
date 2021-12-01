@@ -4,8 +4,6 @@ from torch.nn.functional import relu
 
 T.manual_seed(1)
 
-#TODO: add parameter normalization as in VIR sem
-
 #TODO: create suitable architecture
 # ideas: 1) sequence predictor and then evaluate error
 #        2) auto-encoder and evaluate error on whole sequence
@@ -53,7 +51,7 @@ class LSTMAE2(nn.Module):
         return Y
 
 
-class LSTMAE0(nn.Module):
+class LSTMAE0(nn.Module):  # best model so far
     def __init__(self, in_features=1, h_size=120, h2_size=90):
         super(LSTMAE0, self).__init__()
         self.lstmEnFull = T.nn.LSTM(in_features, h_size, 2, batch_first=True)
@@ -80,7 +78,7 @@ class LSTMAE0(nn.Module):
 
 
 class LSTMAE(nn.Module):
-    def __init__(self, in_features=1, h_size=150, h2_size=110):
+    def __init__(self, in_features=1, h_size=90, h2_size=80):
         super(LSTMAE, self).__init__()
         self.lstmEnFull = T.nn.LSTM(in_features, h_size, 2, batch_first=True, dropout=0.2)
         self.lstmDeFull = T.nn.LSTM(h_size, h2_size, 1, batch_first=True)
@@ -88,9 +86,9 @@ class LSTMAE(nn.Module):
         self.lin_c = T.nn.Linear(h_size, h2_size)
         self.lin_out = T.nn.Linear(h2_size, in_features)
 
-        self.dropout_h = T.nn.Dropout2d(0.1)
-        self.dropout_c = T.nn.Dropout2d(0.1)
-        self.dropout_out = T.nn.Dropout2d(0.1)
+        self.dropout_h = T.nn.Dropout2d(0.2)
+        self.dropout_c = T.nn.Dropout2d(0.2)
+        self.dropout_out = T.nn.Dropout2d(0.2)
 
         T.nn.init.kaiming_normal_(self.lin_h.weight, mode='fan_in', nonlinearity='linear')
         T.nn.init.kaiming_normal_(self.lin_c.weight, mode='fan_in', nonlinearity='linear')
