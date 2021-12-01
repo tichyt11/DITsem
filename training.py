@@ -23,7 +23,7 @@ def train_AE(train_X, eval_X, AE, params, plot=True):
     epoch_losses = []
 
     optimizer = T.optim.Adam(AE.parameters(), lr=params["lr"], weight_decay=params["weight_decay"], eps=1e-4)
-    criterion = T.nn.MSELoss()
+    criterion = T.nn.MSELoss()  # averaged squared error
 
     for i in range(epochs):
 
@@ -41,21 +41,22 @@ def train_AE(train_X, eval_X, AE, params, plot=True):
             optimizer.step()
 
             with T.no_grad():  # add loss to accumulated loss
-                epoch_loss += loss.cpu()/(num_iters*b_size)  # current epoch loss per batch
+                epoch_loss += loss.cpu()/(num_iters)  # current epoch loss per batch
 
         epoch_losses.append(epoch_loss)  # append to epoch losses list for later plotting
 
         if (i+1) % n_e_info == 0:  # print stats
             with T.no_grad():
                 eval_Y = model.eval().forward(eval_X)  # estimate of eval_X
-                eval_loss = criterion(eval_X, eval_Y)/eval_Y.size(0)  # loss averaged over batches
+                eval_loss = criterion(eval_X, eval_Y)  # loss averaged over batches
             print("Epoch {}/{}, average sequence loss: {} , finished after {} minutes".format(i+1, params["epochs"],
                     eval_loss, int((time()-t_start)//60)))
             if (i+1) % (10*n_e_info) == 0:  # checkpoint every 10 stat infos
                 save_model(model, eval_loss, params, i + 1)
 
         if msvcrt.kbhit():  # handle quitting
-            if msvcrt.getch() == 'q':
+            c = msvcrt.getch().decode('utf-8')
+            if c == 'q':  # quit
                 print('Canceling training process')
                 break
 
@@ -81,8 +82,10 @@ if __name__ == '__main__':
     # trainX_T = trainX_T/T.abs(trainX_T).max()  # scale down by max absolute value
 
     model = LSTMAE(params['n_sensors']).cuda()
-    # model, checkpoint = load_model(model, 'trained_models\')
-    # params['epoch_0'] = checkpoint['epoch']
+
+    model, checkpoint = load_model(model, 'trained_models/LSTMAE/LSTMAE_sen8_ts40_iter001500')
+    params['epoch_0'] = checkpoint['epoch']
+
     visualize(model, ver_X, params)
     model = train_AE(train_X, eval_X, model, params)
     visualize(model, ver_X, params)
