@@ -11,10 +11,11 @@ def load_model(model, path):
 
 def save_model(model, loss, params, epoch):
     sdir = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                        "trained_models\{}_sen{}_ts{}_iter{6}".format(model.__class__.__name__, params['n_sensors'],
-                                                                     params['n_timesteps'], epoch))
+                        "{}/{}_sen{}_ts{}_iter{:06d}".format(params['target_folder'], model.__class__.__name__,
+                                                          params['n_sensors'],
+                                                          params['n_timesteps'], (epoch + params['epoch_0']) ))
     T.save({
-        'epoch': epoch,
+        'epoch': (epoch + params['epoch_0']),
         'model_state_dict': model.state_dict(),
         'loss': loss,
         'n_sensors': params['n_sensors'],
