@@ -1,16 +1,14 @@
-from preprocessing import load_data, room_temp_columns, outside_temp_column, prepare_for_training
-from models import LSTMAE, LSTMAE2, LSTMAE0
-from visualization import visualize, visualize_folder, plot_losses
+from preprocessing import load_data, room_temp_columns, outside_temp_column, prepare_for_training, prepare_faulty_data
+from models import LSTMAE, LSTMAE_new, TRAE, LSTMAE_01
+from visualization import visualize, visualize_n, visualize_folder, plot_losses, plot_histograms
 from utils import load_model, save_model
 import torch as T
 from time import time
 from datetime import datetime
 import msvcrt
 
-# TODO: test model trained on some seq length on larger/smaller time sequences, if it works
-# TODO: more effiecient way to shuffle dataset?
 
-def train_AE(train_X, eval_X, AE, params, plot=True):
+def train_AE(AE, train_X, train_Y, eval_X, eval_Y, params, plot=True):
     b_size = params['batchsize']
     epochs = params['epochs']
     n_e_info = params['n_e_info']
@@ -27,7 +25,9 @@ def train_AE(train_X, eval_X, AE, params, plot=True):
 
     for i in range(epochs):
 
-        shuffled_X = train_X[T.randperm(train_X.size()[0]), :, :]  # randomize the batches
+        rand_indeces = T.randperm(train_X.size()[0])
+        shuffled_X = train_X[rand_indeces, :, :]  # randomize the batches for each epoch
+
         # replace with view for faster memory access
         epoch_loss = 0
         for j in range(num_iters):
@@ -36,7 +36,7 @@ def train_AE(train_X, eval_X, AE, params, plot=True):
             AE.train()
             optimizer.zero_grad()
             batch_Y = AE.forward(batch_X)
-            loss = criterion(batch_X, batch_Y)
+            loss = criterion(T.unsqueeze(batch_X[:, :, 0], 2), batch_Y)
             loss.backward()
             optimizer.step()
 
@@ -48,9 +48,9 @@ def train_AE(train_X, eval_X, AE, params, plot=True):
         if (i+1) % n_e_info == 0:  # print stats
             with T.no_grad():
                 eval_Y = model.eval().forward(eval_X)  # estimate of eval_X
-                eval_loss = criterion(eval_X, eval_Y)  # loss averaged over batches
-            print("Epoch {}/{}, average sequence loss: {} , finished after {} minutes".format(i+1, params["epochs"],
-                    eval_loss, int((time()-t_start)//60)))
+                eval_loss = criterion(T.unsqueeze(eval_X[:, :, 0], 2), eval_Y)  # loss averaged over batches
+            print("Epoch {}/{}, train loss: {:.4f}, eval loss: {:.4f} , finished after {} minutes".format(i+1, params["epochs"],
+                    epoch_loss, eval_loss, int((time()-t_start)//60)))
             if (i+1) % (10*n_e_info) == 0:  # checkpoint every 10 stat infos
                 save_model(model, eval_loss, params, i + 1)
 
@@ -66,8 +66,8 @@ def train_AE(train_X, eval_X, AE, params, plot=True):
     return AE
 
 
-params = {"epochs": 20000, "batchsize": 300, "lr": 0.007, "weight_decay": 0.0001, 'epoch_0': 0,
-            'n_e_info': 50, 'n_sensors': 8, 'n_timesteps': 40, 'target_folder': 'trained_models/LSTMAE'}
+params = {"epochs": 30000, "batchsize": 258, "lr": 0.007, "weight_decay": 0.0001, 'epoch_0': 0,
+            'n_e_info': 50, 'n_sensors': 8, 'n_timesteps': 40, 'target_folder': 'trained_models/TRAE'}
 
 if __name__ == '__main__':
 
@@ -75,18 +75,25 @@ if __name__ == '__main__':
     room_temps = data_values[:, room_temp_columns]  # just the room temperatures in C
 
     # leave the last
-    X = prepare_for_training(room_temps[:, :params['n_sensors']], params['n_timesteps'])
+    X, Y = prepare_for_training(room_temps[:, :params['n_sensors']], params['n_timesteps'])
     train_X = X[:-2000, :, :].cuda()  # training data
+    train_Y = T.unsqueeze(train_X[:, :, 0], 2)
     eval_X = X[-2000:-500, :, :].cuda()  # evaluation data
+    eval_Y = T.unsqueeze(eval_X[:, :, 0], 2)  # first sensors values
     ver_X = X[-500:, :, :].cuda()  # verification data
     # trainX_T = trainX_T/T.abs(trainX_T).max()  # scale down by max absolute value
 
-    model = LSTMAE(params['n_sensors']).cuda()
+    model = LSTMAE_01(params['n_sensors']).cuda()
 
-    model, checkpoint = load_model(model, 'trained_models/LSTMAE/LSTMAE_sen8_ts40_iter001500')
+    model, checkpoint = load_model(model, 'trained_models/LSTMAE_01/LSTMAE_01_sen8_ts40_iter020000')
     params['epoch_0'] = checkpoint['epoch']
 
-    visualize(model, ver_X, params)
-    model = train_AE(train_X, eval_X, model, params)
-    visualize(model, ver_X, params)
+    plot_histograms(model, train_X, prepare_faulty_data(train_X.cpu()).cuda())
+
+    visualize_n(model, ver_X, params)
+    visualize_n(model, prepare_faulty_data(ver_X.cpu()).cuda(), params)
+    # model = train_AE(model, train_X, train_Y, eval_X, eval_Y, params)
+    # visualize(model, ver_X, params)
+    # visualize(model, prepare_faulty_data(ver_X.cpu()).cuda(), params)
+
 

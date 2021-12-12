@@ -1,11 +1,10 @@
+import copy
+
 import numpy as np
 import pandas as pd
 import torch as T
 
-# TODO: make faulty data for testing
-# TODO: generate more fault-free data - augmentation
-# TODO: create a dataset object - mby faster
-
+# TODO: generate more fault-free data - augmentation - add constant/linear function to all sensors
 
 # 19 columns of data total
 room_temp_columns = np.arange(9)  # columns of room temperature data
@@ -59,4 +58,19 @@ def prepare_for_training(data_values, train_size):
         trainX_T = T.from_numpy(trainX).float()
         trainX_T = T.unsqueeze(trainX_T, dim=-1)
 
-    return trainX_T
+    trainY_T = T.unsqueeze(trainX_T[:, :, 0], 2)  # take first sensor2345
+    return trainX_T, trainY_T
+
+def prepare_faulty_data(data_values):
+    # take in fault-free data and add noise/linear fcn/ multiply one of the channels
+    # also generate labels
+    faulty_data = copy.copy(data_values)  # create a copy
+
+    lin = T.arange(data_values.size(1))[None].float()  # 0,1,...,n_timesteps - 1
+    slopes = (T.rand(data_values.size(0), 1) + 0.3)/4  # slope magnitude for each batch
+    signs = T.randint(0, 2, (data_values.size(0), 1))*2 - 1  # negative or positive slopes
+    slopes = T.mul(signs, slopes)  # multiply element-wise
+    lin_errors = T.matmul(slopes, lin)  # create linear functions for all batches
+
+    faulty_data[:, :, 0] = faulty_data[:, :, 0] + lin_errors  # add linear errors to data
+    return faulty_data
