@@ -1,5 +1,5 @@
-from preprocessing import load_data, room_temp_columns, outside_temp_column, prepare_for_training, prepare_faulty_data
-from models import LSTMAE, LSTMAE_new, TRAE, LSTMAE_01
+from preprocessing import load_data, room_temp_columns, outside_temp_column, prepare_for_training, add_linear_error
+from models import LSTMAE_new2, LSTMAE_new3, LSTMAE_new4, LSTMAE_new5, LSTMAE_dual, LSTMAE_dual2, LSTMAE_dual3
 from visualization import visualize, visualize_n, visualize_folder, plot_losses, plot_histograms
 from utils import load_model, save_model
 import torch as T
@@ -66,8 +66,8 @@ def train_AE(AE, train_X, train_Y, eval_X, eval_Y, params, plot=True):
     return AE
 
 
-params = {"epochs": 30000, "batchsize": 258, "lr": 0.007, "weight_decay": 0.0001, 'epoch_0': 0,
-            'n_e_info': 50, 'n_sensors': 8, 'n_timesteps': 40, 'target_folder': 'trained_models/TRAE'}
+params = {"epochs": 30000, "batchsize": 4096, "lr": 0.002, "weight_decay": 0.0001, 'epoch_0': 0,
+            'n_e_info': 50, 'n_sensors': 8, 'n_timesteps': 40, 'target_folder': 'trained_models/LSTMAE_dual3'}
 
 if __name__ == '__main__':
 
@@ -83,17 +83,18 @@ if __name__ == '__main__':
     ver_X = X[-500:, :, :].cuda()  # verification data
     # trainX_T = trainX_T/T.abs(trainX_T).max()  # scale down by max absolute value
 
-    model = LSTMAE_01(params['n_sensors']).cuda()
+    model = LSTMAE_dual3(params['n_sensors']).cuda()
 
-    model, checkpoint = load_model(model, 'trained_models/LSTMAE_01/LSTMAE_01_sen8_ts40_iter020000')
+    model, checkpoint = load_model(model, 'trained_models/LSTMAE_dual3/LSTMAE_dual3_sen8_ts40_iter090000')
     params['epoch_0'] = checkpoint['epoch']
 
-    plot_histograms(model, train_X, prepare_faulty_data(train_X.cpu()).cuda())
+    plot_histograms(model, train_X, add_linear_error(train_X.cpu()).cuda())
+    plot_histograms(model, eval_X, add_linear_error(eval_X.cpu()).cuda())
 
-    visualize_n(model, ver_X, params)
-    visualize_n(model, prepare_faulty_data(ver_X.cpu()).cuda(), params)
-    # model = train_AE(model, train_X, train_Y, eval_X, eval_Y, params)
-    # visualize(model, ver_X, params)
-    # visualize(model, prepare_faulty_data(ver_X.cpu()).cuda(), params)
+    visualize(model, eval_X, params)
+    visualize(model, add_linear_error(eval_X.cpu()).cuda(), params)
+    model = train_AE(model, train_X, train_Y, eval_X, eval_Y, params)
+    visualize(model, eval_X, params)
+    visualize(model, add_linear_error(eval_X.cpu()).cuda(), params)
 
 

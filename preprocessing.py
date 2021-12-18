@@ -61,16 +61,30 @@ def prepare_for_training(data_values, train_size):
     trainY_T = T.unsqueeze(trainX_T[:, :, 0], 2)  # take first sensor2345
     return trainX_T, trainY_T
 
-def prepare_faulty_data(data_values):
+def add_linear_error(data_values, minslope=0.2, maxslope=0.3):
     # take in fault-free data and add noise/linear fcn/ multiply one of the channels
-    # also generate labels
-    faulty_data = copy.copy(data_values)  # create a copy
+    faulty_data = copy.deepcopy(data_values)  # create a copy
 
     lin = T.arange(data_values.size(1))[None].float()  # 0,1,...,n_timesteps - 1
-    slopes = (T.rand(data_values.size(0), 1) + 0.3)/4  # slope magnitude for each batch
+    # slopes = (T.rand(data_values.size(0), 1) + 0.3)/4  # slope magnitude for each batch
+    slopes = minslope + (maxslope - minslope)*(T.rand(data_values.size(0), 1))  # slope magnitude for each batch
     signs = T.randint(0, 2, (data_values.size(0), 1))*2 - 1  # negative or positive slopes
     slopes = T.mul(signs, slopes)  # multiply element-wise
     lin_errors = T.matmul(slopes, lin)  # create linear functions for all batches
 
     faulty_data[:, :, 0] = faulty_data[:, :, 0] + lin_errors  # add linear errors to data
+    return faulty_data
+
+
+def add_outliers(data_values, minval=1, maxval=2):
+    faulty_data = copy.deepcopy(data_values)  # create a copy
+
+    indeces = T.randint(1, data_values.size(1) - 1, (data_values.size(0), 1)).flatten()  # random indeces
+    signs = T.randint(0, 2, (data_values.size(0), 1)).flatten()*2 - 1  # negative or positive
+    vals = minval + (maxval - minval)*T.rand(data_values.size(0), 1).flatten()
+    vals = T.mul(signs, vals)  # multiply element-wise
+    batches = T.arange(data_values.size(0))  # batch indeces
+    faulty_data[batches, indeces, 0] += vals
+    faulty_data[batches, indeces + 1, 0] += vals
+    faulty_data[batches, indeces - 1, 0] += vals
     return faulty_data
