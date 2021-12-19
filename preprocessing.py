@@ -44,7 +44,8 @@ def load_data(fpath='DataCSV.csv'):
 
     return data_values, data_labels, data_timestamps
 
-def prepare_for_training(data_values, train_size):
+
+def create_batches(data_values, train_size):
     # takes in data_values == columns of sensor sequences and spits out a large batch of training data with length
     # of sequences equal to train_size
     # data_values has a data sequence in each column
@@ -58,8 +59,20 @@ def prepare_for_training(data_values, train_size):
         trainX_T = T.from_numpy(trainX).float()
         trainX_T = T.unsqueeze(trainX_T, dim=-1)
 
-    trainY_T = T.unsqueeze(trainX_T[:, :, 0], 2)  # take first sensor2345
-    return trainX_T, trainY_T
+    return trainX_T
+
+
+def prepare_for_AE(data_values):
+    X = data_values.cuda()  # training data
+    targets = T.unsqueeze(X[:, :, 0], 2)  # take first sensors as target
+    return X, targets
+
+def prepare_for_classifier(data_values):
+    X = data_values.cuda()  # training data
+    targets = T.unsqueeze(X[:, :, 0], 2)  # take first sensors as target
+    return X, targets
+
+
 
 def add_linear_error(data_values, minslope=0.2, maxslope=0.3):
     # take in fault-free data and add noise/linear fcn/ multiply one of the channels
