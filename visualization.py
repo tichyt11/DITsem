@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 from random import randint
 from models import *
-from preprocessing import load_data, room_temp_columns, create_batches, add_linear_error, add_outliers
+from preprocessing import *
 from utils import load_model
 import os
 import torch as T
@@ -58,25 +58,6 @@ def plot_losses(losses):
     plt.show()
 
 
-def eval_classifier(model, X, labels):
-    with T.no_grad():
-        prediction = model.eval().forward(X)
-    positives_pred = prediction[labels == 1]
-    true_positives = 100*T.sum(positives_pred >= 0.5)/positives_pred.size(0)
-    false_negatives = 100*T.sum(positives_pred < 0.5)/positives_pred.size(0)
-
-    negatives_pred = prediction[labels == 0]
-    true_negatives = 100*T.sum(negatives_pred < 0.5)/negatives_pred.size(0)
-    false_positives = 100*T.sum(negatives_pred >= 0.5)/negatives_pred.size(0)
-
-    print('Confusion matrix: ')
-    print('     PP    PN')
-    print('P [{:.2f}, {:.2f}]\nN [{:.2f}, {:.2f}]'.format(true_positives, false_negatives, false_positives, true_negatives))
-
-    errors = T.abs(prediction - labels)
-    print('average error: {:.2f}'.format(T.mean(errors)))
-
-
 def eval_full_classifier(model, X, labels, n_samples=1):
     with T.no_grad():
         prediction = model.eval().forward(X)
@@ -109,6 +90,23 @@ def eval_full_classifier(model, X, labels, n_samples=1):
     print('Correctly predicted {:.2f} % of samples'.format(100*n_correct/X.size(0)))
     avg_abs_err = T.mean(T.abs(prediction - labels), 0)  # average 3-dimensional absolute error
     print('average error: [{:.2f}, {:.2f}, {:.2f}]'.format(avg_abs_err[0], avg_abs_err[1], avg_abs_err[2]))
+
+
+def visualize_folder_classifier(model, folder, X, labels, params):
+
+    fnames = os.listdir(folder)  # there must be only params in the folder
+    for fname in fnames:
+        model, checkpoint = load_model(model, os.path.join(folder, fname))
+        with T.no_grad():
+            prediction = model.eval().forward(X)
+
+        predicted_labels = (prediction >= 0.5) * 1  # values >= 0.5 -> True
+        same = predicted_labels == labels  # nx3 matrix of True/False
+        correct_ids = T.sum(same, 1) == 3
+        correct_predictions = predicted_labels[correct_ids]  # only labels, that were correctly predicted
+        n_correct = correct_predictions.size(0)  # total number of matches
+        print('model: {} training eval loss: {:.4f}, correct pred: {:.2f}'.format(fname, checkpoint['loss'], 100 * n_correct / X.size(0)))
+
 
 
 def visualize_AE(model, X, faulty_X, params):
@@ -201,10 +199,15 @@ if __name__=='__main__':
     room_temp_labels = data_labels[room_temp_columns]
     room_temp_labels = [(room_temp_labels[i], 'LSTM output') for i in range(len(room_temp_labels))]
 
-    X, Y = create_batches(room_temps[:, :params['n_sensors']], params['n_timesteps'])
-    eval_X = X[-2000:-500, :, :]  # evaluation data
+    X = create_batches(room_temps[:, :params['n_sensors']], params['n_timesteps'])
+    ver_data = X[-500:, :, :]
+    ver_X, ver_labels = prepare_for_full_classifier(ver_data)
 
-    model = LSTMAE_dual3(params['n_sensors'])
-    target_folder = 'trained_models/LSTMAE_dual3'
-    visualize_folder_AE(model, target_folder, eval_X, params, room_temp_labels)
+    # model = LSTMAE_dual3(params['n_sensors'])
+    # target_folder = 'trained_models/LSTMAE_dual3'
+    # visualize_folder_AE(model, target_folder, eval_X, params, room_temp_labels)
+
+    model = FullClassifier_best(params['n_sensors'])
+    target_folder = 'trained_models/FullClassifier3'
+    visualize_folder_classifier(model, target_folder, ver_X, ver_labels, params)
 

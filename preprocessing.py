@@ -111,7 +111,7 @@ def add_offset_error(data_values, minval=1, maxval=2):
     faulty_data[:, :, 0] += offsets*T.ones(1, faulty_data.size(1))
     return faulty_data
 
-def add_linear_error(data_values, minslope=0.06, maxslope=0.1):
+def add_linear_error(data_values, minslope=0.075, maxslope=0.1):
 # def add_linear_error(data_values, minslope=0.075, maxslope=0.15): # orig
 # def add_linear_error(data_values, minslope=0.2, maxslope=0.4):  # hum
     # take in fault-free data and add a linear fcn

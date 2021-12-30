@@ -55,45 +55,6 @@ class FullClassifier4(nn.Module):
         return Y
 
 
-class DualClassifier(nn.Module):  # 40 percent error on all types
-    def __init__(self, in_features=1, h11_size=6, h21_size=12, h2_size=24, h3_size=24):
-        super(DualClassifier, self).__init__()
-        self.lin_h1 = T.nn.Linear(in_features, h11_size)
-        self.lin_c1 = T.nn.Linear(in_features, h11_size)
-        self.lin_h2 = T.nn.Linear(in_features, h21_size)
-        self.lin_c2 = T.nn.Linear(in_features, h21_size)
-        self.lstm1 = T.nn.LSTM(1, h11_size, 1, batch_first=True)
-        self.lstm2 = T.nn.LSTM(in_features - 1, h21_size, 1, batch_first=True)
-
-        self.lin_11 = T.nn.Linear(h11_size, h2_size)
-        self.lin_12 = T.nn.Linear(h21_size, h2_size)
-
-        self.lin_2 = T.nn.Linear(h2_size + h2_size, h3_size)
-        self.lin_out = T.nn.Linear(h3_size, 3)
-
-        T.nn.init.kaiming_normal_(self.lin_11.weight, mode='fan_in', nonlinearity='relu')
-        T.nn.init.kaiming_normal_(self.lin_12.weight, mode='fan_in', nonlinearity='relu')
-        T.nn.init.kaiming_normal_(self.lin_2.weight, mode='fan_in', nonlinearity='relu')
-        T.nn.init.kaiming_normal_(self.lin_out.weight, mode='fan_in', nonlinearity='sigmoid')
-
-    def forward(self, X):
-        h10 = T.tanh(self.lin_h1(X[:, 0, :])).unsqueeze(0)
-        c10 = T.tanh(self.lin_c1(X[:, 0, :])).unsqueeze(0)
-        h20 = T.tanh(self.lin_h2(X[:, 0, :])).unsqueeze(0)
-        c20 = T.tanh(self.lin_c2(X[:, 0, :])).unsqueeze(0)
-
-        out1, _ = self.lstm1(T.unsqueeze(X[:, :, 0], 2), (h10, c10))[1]
-        out2, _ = self.lstm2(X[:, :, 1:], (h20, c20))[1]
-
-        h11 = T.relu(self.lin_11(out1[-1]))
-        h12 = T.relu(self.lin_12(out2[-1]))
-        h1 = T.cat((h11, h12), 1)
-
-        h2 = T.relu(self.lin_2(h1))
-        Y = T.sigmoid(self.lin_out(h2))
-        return Y
-
-
 class LSTMAE0(nn.Module):  # best model so far
     def __init__(self, in_features=1, h_size=120, h2_size=90):
         super(LSTMAE0, self).__init__()
@@ -197,6 +158,7 @@ class LSTMAE_new2(nn.Module):  # LSTMAE0, but output is only 1 sequence
         h_de, _ = self.lstmDeFull(repeated_h_en, (h_0, c_0))  # pass all hidden states of decoder
         Y = self.lin_out(h_de)
         return Y
+
 
 class LSTMAE_new3(nn.Module):  # LSTMAE0, but output is only 1 sequence
     def __init__(self, in_features=1, h_size=10, h2_size=30):

@@ -82,8 +82,8 @@ def train(training_model, train_X, train_target, eval_X, eval_target, params, pl
     return training_model
 
 
-params = {"epochs": 60000, "batchsize": 4096, "lr": 0.001, "weight_decay": 0.0001, 'epoch_0': 0,
-            'n_e_info': 50, 'n_sensors': 6, 'n_timesteps': 40, 'target_folder': 'trained_models/FullClassifier5',
+params = {"epochs": 60000, "batchsize": 8192, "lr": 0.00001, "weight_decay": 0.0001, 'epoch_0': 0,
+            'n_e_info': 50, 'n_sensors': 8, 'n_timesteps': 40, 'target_folder': 'trained_models/FullClassifier4',
             'criterion': ''}
 
 if __name__ == '__main__':
@@ -117,14 +117,14 @@ if __name__ == '__main__':
     ver_X, ver_labels = prepare_for_full_classifier(ver_data)
 
     idx = randint(0, train_data.size(0))
-    print(idx) # 11088
+    print(idx)  # 11088
     plot_signals(train_data[0 + idx, :, :], plot_labels)
     plot_signals(train_X[7*train_data.size(0) + idx, :, :], plot_labels)
 
-    model = DualClassifier(params['n_sensors']).float()  # load model
+    model = FullClassifier_best(params['n_sensors']).float()  # load model
     print(model)
-    # model, checkpoint = load_model(model, 'trained_models/FullClassifier5/FullClassifier5_sen1_ts40_iter004000')
-    # params['epoch_0'] = checkpoint['epoch']
+    model, checkpoint = load_model(model, 'trained_models/FullClassifier3/FullClassifier3_sen8_ts40_iter031000 ')
+    params['epoch_0'] = checkpoint['epoch']
 
     params['criterion'] = T.nn.MSELoss()
     # params['criterion'] = T.nn.BCELoss()
