@@ -1,25 +1,75 @@
 from torch import nn
 import torch as T
 
-T.manual_seed(1)
 
-#TODO: create suitable architecture
-# ideas: 1) sequence predictor and then evaluate error
-#        2) LSTM auto-encoder and evaluate error on whole sequence
+class FullClassifier_best(nn.Module):  # 98 on reduced error
+    def __init__(self, in_features=1, h1_size=20, h2_size=32, h3_size=32):
+        super(FullClassifier_best, self).__init__()
+        self.lin_h = T.nn.Linear(in_features, h1_size)
+        self.lin_c = T.nn.Linear(in_features, h1_size)
+        self.lstm = T.nn.LSTM(in_features, h1_size, 1, batch_first=True)
+
+        self.lin_1 = T.nn.Linear(h1_size, h2_size)
+        self.lin_2 = T.nn.Linear(h2_size, h3_size)
+        self.lin_out = T.nn.Linear(h3_size, 3)
+
+        T.nn.init.kaiming_normal_(self.lin_1.weight, mode='fan_in', nonlinearity='relu')
+        T.nn.init.kaiming_normal_(self.lin_2.weight, mode='fan_in', nonlinearity='relu')
+        T.nn.init.kaiming_normal_(self.lin_out.weight, mode='fan_in', nonlinearity='sigmoid')
+
+    def forward(self, X):
+        # encoder part
+        h0 = T.tanh(self.lin_h(X[:, 0, :])).unsqueeze(0)
+        c0 = T.tanh(self.lin_c(X[:, 0, :])).unsqueeze(0)
+        hns, _ = self.lstm(X, (h0, c0))[1]
+
+        h1 = T.relu(self.lin_1(hns[-1]))
+        h2 = T.relu(self.lin_2(h1))
+        Y = T.sigmoid(self.lin_out(h2))
+        return Y
 
 
-class Classifier(nn.Module):
-    def __init__(self, in_features=1, h1_size=12, h2_size=12, h3_size=12):
-        super(Classifier, self).__init__()
-        self.lstmdim = 2
-        self.lstm1 = T.nn.LSTM(1, h1_size, self.lstmdim, batch_first=True)
-        self.lstm2 = T.nn.LSTM(in_features - 1, 2*h1_size, self.lstmdim, batch_first=True)
+class FullClassifier4(nn.Module):
+    def __init__(self, in_features=1, h1_size=32, h2_size=48, h3_size=48):
+        super(FullClassifier4, self).__init__()
+        self.lin_h = T.nn.Linear(in_features, h1_size)
+        self.lin_c = T.nn.Linear(in_features, h1_size)
+        self.lstm = T.nn.LSTM(in_features, h1_size, 1, batch_first=True)
 
-        self.lin_11 = T.nn.Linear(h1_size, h2_size)
-        self.lin_12 = T.nn.Linear(2*h1_size, h2_size)
+        self.lin_1 = T.nn.Linear(h1_size, h2_size)
+        self.lin_2 = T.nn.Linear(h2_size, h3_size)
+        self.lin_out = T.nn.Linear(h3_size, 3)
 
-        self.lin_2 = T.nn.Linear(2*h2_size, h3_size)
-        self.lin_out = T.nn.Linear(h3_size, 1)
+        T.nn.init.kaiming_normal_(self.lin_1.weight, mode='fan_in', nonlinearity='relu')
+        T.nn.init.kaiming_normal_(self.lin_2.weight, mode='fan_in', nonlinearity='relu')
+        T.nn.init.kaiming_normal_(self.lin_out.weight, mode='fan_in', nonlinearity='sigmoid')
+
+    def forward(self, X):
+        h0 = T.tanh(self.lin_h(X[:, 0, :])).unsqueeze(0)
+        c0 = T.tanh(self.lin_c(X[:, 0, :])).unsqueeze(0)
+        hns, _ = self.lstm(X, (h0, c0))[1]
+
+        h1 = T.relu(self.lin_1(hns[-1]))
+        h2 = T.relu(self.lin_2(h1))
+        Y = T.sigmoid(self.lin_out(h2))
+        return Y
+
+
+class DualClassifier(nn.Module):  # 40 percent error on all types
+    def __init__(self, in_features=1, h11_size=6, h21_size=12, h2_size=24, h3_size=24):
+        super(DualClassifier, self).__init__()
+        self.lin_h1 = T.nn.Linear(in_features, h11_size)
+        self.lin_c1 = T.nn.Linear(in_features, h11_size)
+        self.lin_h2 = T.nn.Linear(in_features, h21_size)
+        self.lin_c2 = T.nn.Linear(in_features, h21_size)
+        self.lstm1 = T.nn.LSTM(1, h11_size, 1, batch_first=True)
+        self.lstm2 = T.nn.LSTM(in_features - 1, h21_size, 1, batch_first=True)
+
+        self.lin_11 = T.nn.Linear(h11_size, h2_size)
+        self.lin_12 = T.nn.Linear(h21_size, h2_size)
+
+        self.lin_2 = T.nn.Linear(h2_size + h2_size, h3_size)
+        self.lin_out = T.nn.Linear(h3_size, 3)
 
         T.nn.init.kaiming_normal_(self.lin_11.weight, mode='fan_in', nonlinearity='relu')
         T.nn.init.kaiming_normal_(self.lin_12.weight, mode='fan_in', nonlinearity='relu')
@@ -27,19 +77,21 @@ class Classifier(nn.Module):
         T.nn.init.kaiming_normal_(self.lin_out.weight, mode='fan_in', nonlinearity='sigmoid')
 
     def forward(self, X):
-        # encoder part
-        out1, _ = self.lstm1(T.unsqueeze(X[:, :, 0], 2))[1]
-        out2, _ = self.lstm2(X[:, :, 1:])[1]
+        h10 = T.tanh(self.lin_h1(X[:, 0, :])).unsqueeze(0)
+        c10 = T.tanh(self.lin_c1(X[:, 0, :])).unsqueeze(0)
+        h20 = T.tanh(self.lin_h2(X[:, 0, :])).unsqueeze(0)
+        c20 = T.tanh(self.lin_c2(X[:, 0, :])).unsqueeze(0)
+
+        out1, _ = self.lstm1(T.unsqueeze(X[:, :, 0], 2), (h10, c10))[1]
+        out2, _ = self.lstm2(X[:, :, 1:], (h20, c20))[1]
 
         h11 = T.relu(self.lin_11(out1[-1]))
         h12 = T.relu(self.lin_12(out2[-1]))
         h1 = T.cat((h11, h12), 1)
 
         h2 = T.relu(self.lin_2(h1))
-
         Y = T.sigmoid(self.lin_out(h2))
         return Y
-
 
 
 class LSTMAE0(nn.Module):  # best model so far

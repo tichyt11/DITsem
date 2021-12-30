@@ -6,7 +6,25 @@ from utils import load_model
 import os
 import torch as T
 import numpy as np
-from time import sleep
+
+
+def plot_signals(data, labels=None):
+    if data.dim() == 3:
+        k = randint(0, data.size(0))
+        X = data[k, :, :]  # take a random sample from data
+    else:
+        X = data
+    cmp = plt.cm.get_cmap('gist_rainbow', X.size(1))
+
+    if labels is None:
+        labels = ['signal % i' % (i + 1) for i in range(X.size(1))]
+
+    for i in range(X.size(1)):
+        plt.plot(range(X.size(0)), X[:, i].cpu().numpy(), label=labels[i], color=cmp(i))
+    plt.xlabel('time [h]')
+    plt.ylabel('Temperature [°C]')
+    plt.legend()
+    plt.show()
 
 
 def plot_histograms_AE(AE, healthy_X, faulty_X):
@@ -59,6 +77,40 @@ def eval_classifier(model, X, labels):
     print('average error: {:.2f}'.format(T.mean(errors)))
 
 
+def eval_full_classifier(model, X, labels, n_samples=1):
+    with T.no_grad():
+        prediction = model.eval().forward(X)
+
+    for i in range(n_samples):
+        k = randint(0, X.size(0))  # random index
+        pred_k = prediction[k, :]
+        label_k = labels[k, :]
+
+        sample = X[k, :, :]
+        cmp = plt.cm.get_cmap('gist_rainbow', sample.size(1))
+        for i in range(sample.size(1)):
+            plt.plot(range(sample.size(0)), sample[:, i].cpu().numpy(), label='signal %i' % (i + 1), color=cmp(i))
+        pred_frmt = [round(i, 2) for i in pred_k.tolist()]
+        lbl_frmt = [round(i, 2) for i in label_k.tolist()]
+        plt.title('Predicted label: {} \nActual label: {} \n'.format(pred_frmt, lbl_frmt))
+        plt.legend()
+        plt.show()
+
+    predicted_labels = (prediction >= 0.5)*1  # values >= 0.5 -> True
+    same = predicted_labels == labels  # nx3 matrix of True/False
+    correct_ids = T.sum(same, 1) == 3
+    correct_predictions = predicted_labels[correct_ids]  # only labels, that were correctly predicted
+    wrong_predictions = labels[~correct_ids]  # only labels, that were not correctly predicted
+    uniq_lbls, counts = np.unique(wrong_predictions, return_counts=True, axis=0)
+    print(uniq_lbls)
+    print(counts)
+    n_correct = correct_predictions.size(0)  # total number of matches
+
+    print('Correctly predicted {:.2f} % of samples'.format(100*n_correct/X.size(0)))
+    avg_abs_err = T.mean(T.abs(prediction - labels), 0)  # average 3-dimensional absolute error
+    print('average error: [{:.2f}, {:.2f}, {:.2f}]'.format(avg_abs_err[0], avg_abs_err[1], avg_abs_err[2]))
+
+
 def visualize_AE(model, X, faulty_X, params):
     if X.size(0) > 3:
         k = randint(0, X.size(0)-3)
@@ -85,7 +137,7 @@ def visualize_AE(model, X, faulty_X, params):
     plot_histograms_AE(model, X, faulty_X)
 
 
-def visualize_folder(model, folder, X, params, labels=None):
+def visualize_folder_AE(model, folder, X, params, labels=None):
     # given a folder filled with params of the given model, loop through these and show reconstruction for each one
     k = randint(0, X.size(0)-3)
     test_x = X[k:k+2, :, :]  # take a random sample from X
@@ -154,5 +206,5 @@ if __name__=='__main__':
 
     model = LSTMAE_dual3(params['n_sensors'])
     target_folder = 'trained_models/LSTMAE_dual3'
-    visualize_folder(model, target_folder, eval_X, params, room_temp_labels)
+    visualize_folder_AE(model, target_folder, eval_X, params, room_temp_labels)
 
