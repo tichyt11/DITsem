@@ -100,16 +100,6 @@ def prepare_for_full_classifier(data_values):
     targets = T.cat((healthy_l, lin_l, off_l, out_l, lin_off_l, lin_out_l, off_out_l, lin_off_out_l), 0)
     return X, targets
 
-def add_offset_error(data_values, minval=1, maxval=2):
-# def add_offset_error(data_values, minval=2, maxval=3.5):  # orig
-# def add_offset_error(data_values, minval=7, maxval=15):  # hum
-    # take in fault-free data add offset error to first channel
-    faulty_data = copy.deepcopy(data_values)  # create a copy
-    offsets = minval + (maxval - minval)*T.rand(faulty_data.size(0), 1)
-    signs = T.randint(0, 2, (data_values.size(0), 1))*2 - 1  # negative or positive slopes
-    offsets = T.mul(signs, offsets)  # multiply element-wise
-    faulty_data[:, :, 0] += offsets*T.ones(1, faulty_data.size(1))
-    return faulty_data
 
 def add_linear_error(data_values, minslope=0.075, maxslope=0.1):
 # def add_linear_error(data_values, minslope=0.075, maxslope=0.15): # orig
@@ -125,6 +115,19 @@ def add_linear_error(data_values, minslope=0.075, maxslope=0.1):
 
     faulty_data[:, :, 0] = faulty_data[:, :, 0] + lin_errors  # add linear errors to data
     return faulty_data
+
+
+def add_offset_error(data_values, minval=1, maxval=2):
+# def add_offset_error(data_values, minval=2, maxval=3.5):  # orig
+# def add_offset_error(data_values, minval=7, maxval=15):  # hum
+    # take in fault-free data add offset error to first channel
+    faulty_data = copy.deepcopy(data_values)  # create a copy
+    offsets = minval + (maxval - minval)*T.rand(faulty_data.size(0), 1)
+    signs = T.randint(0, 2, (data_values.size(0), 1))*2 - 1  # negative or positive slopes
+    offsets = T.mul(signs, offsets)  # multiply element-wise
+    faulty_data[:, :, 0] += offsets*T.ones(1, faulty_data.size(1))
+    return faulty_data
+
 
 def add_outliers(data_values, minval=2.5, maxval=3.5):
 # def add_outliers(data_values, minval=2.5, maxval=4):  # orig

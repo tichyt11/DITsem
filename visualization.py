@@ -58,6 +58,15 @@ def plot_losses(losses):
     plt.show()
 
 
+def plot_losses(losses, eval_losses, ps_t):
+    # plot epoch loss evolution
+    plt.plot(np.arange(len(losses)), losses, label='train loss')
+    plt.plot(ps_t*(1+np.arange(len(eval_losses))), eval_losses, label='evaluation loss')
+    plt.xlabel('Epoch')
+    plt.ylabel('Average loss in epoch')
+    plt.show()
+
+
 def eval_full_classifier(model, X, labels, n_samples=1):
     with T.no_grad():
         prediction = model.eval().forward(X)

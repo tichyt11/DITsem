@@ -9,17 +9,19 @@ import msvcrt
 from models import *
 
 
-def train(training_model, train_X, train_target, eval_X, eval_target, params, plot=True):
+def train(training_model, train_X, train_target, eval_X, eval_target, params, epochs, plot=True):
     b_size = params['batchsize']
-    epochs = params['epochs']
     n_e_info = params['n_e_info']
 
     num_batches = train_X.size()[0]
-    num_iters = num_batches//b_size
+    # num_iters = num_batches//b_size
+    num_iters = num_batches//b_size + 1
 
     print('Starting training model {} at {}'.format(training_model.__class__.__name__, datetime.now().time()))
     t_start = time()
     epoch_losses = []
+    eval_losses = []
+    eval_percentages = []
 
     optimizer = T.optim.Adam(training_model.parameters(), lr=params["lr"], weight_decay=params["weight_decay"], eps=1e-4)
     criterion = params['criterion']
@@ -27,26 +29,16 @@ def train(training_model, train_X, train_target, eval_X, eval_target, params, pl
     for i in range(epochs):
 
         rand_indeces = T.randperm(train_X.size()[0])
-        shuffled_X = train_X[rand_indeces, :, :]  # randomize the batches for each epoch
+        shuffled_X = train_X[rand_indeces]  # randomize the batches for each epoch
+        shuffled_targets = train_target[rand_indeces]
 
-        if train_target.dim() > 2:
-            shuffled_targets = train_target[rand_indeces, :, :]
-        else:
-            shuffled_targets = train_target[rand_indeces]
-
-        # replace with view for faster memory access
         epoch_loss = 0
         for j in range(num_iters):
-            batch_X = shuffled_X[j*b_size:(j+1)*b_size, :, :]
+            batch_X = shuffled_X[j*b_size:(j+1)*b_size]
+            batch_target = shuffled_targets[j*b_size:(j+1)*b_size]
 
-            if train_target.dim() > 2:
-                batch_target = shuffled_targets[j*b_size:(j+1)*b_size, :, :]
-            else:
-                batch_target = shuffled_targets[j*b_size:(j+1)*b_size]
-
-            training_model.train()
             optimizer.zero_grad()
-            batch_prediction = training_model.forward(batch_X)
+            batch_prediction = training_model.train().forward(batch_X)
             loss = criterion(batch_prediction, batch_target)
             loss.backward()
             optimizer.step()
@@ -64,8 +56,9 @@ def train(training_model, train_X, train_target, eval_X, eval_target, params, pl
                 predicted_labels = (eval_prediction >= 0.5) * 1  # values >= 0.5 -> True
                 correct_ids = T.sum(predicted_labels == eval_target, 1) == 3
                 success_rate = 100*T.sum(correct_ids)/eval_prediction.size(0)  # total percentage of matches
-
-            print("Epoch {}/{}, train loss: {:.4f}, eval loss: {:.4f}, eval success rate: {:.4f}%, finished after {} minutes".format(i+1, params["epochs"],
+            eval_percentages.append(success_rate)
+            eval_losses.append(eval_loss)
+            print("Epoch {}/{}, train loss: {:.4f}, eval loss: {:.4f}, eval success rate: {:.4f}%, finished after {} minutes".format(i+1, epochs,
                     epoch_loss, eval_loss, success_rate, int((time()-t_start)//60)))
             if (i+1) % (10*n_e_info) == 0:  # checkpoint every 10 stat infos
                 save_model(training_model, eval_loss, params, i+1)
@@ -77,13 +70,13 @@ def train(training_model, train_X, train_target, eval_X, eval_target, params, pl
                 break
 
     if plot:
-       plot_losses(epoch_losses)
+       plot_losses(epoch_losses, eval_losses, n_e_info)
 
     return training_model
 
 
-params = {"epochs": 60000, "batchsize": 8192, "lr": 0.00001, "weight_decay": 0.0001, 'epoch_0': 0,
-            'n_e_info': 50, 'n_sensors': 8, 'n_timesteps': 40, 'target_folder': 'trained_models/FullClassifier4',
+params = {"batchsize": 8192, "lr": 0.001, "weight_decay": 0.0001, 'epoch_0': 0,
+            'n_e_info': 50, 'n_sensors': 8, 'n_timesteps': 20, 'target_folder': 'trained_models/FClassifier_1',
             'criterion': ''}
 
 if __name__ == '__main__':
@@ -91,8 +84,9 @@ if __name__ == '__main__':
     data_values, data_labels, data_timestamps = load_data('DataCSV.csv')
     detect_sensor = 0
 
-    room_temps = data_values[:, room_temp_columns]  # just the room temperatures in C
-    plot_labels = np.array(data_labels[room_temp_columns])
+    sensor_ids = np.append(room_temp_columns, outside_temp_column)
+    room_temps = data_values[:, sensor_ids]  # just the room temperatures in C
+    plot_labels = np.array(data_labels[sensor_ids])
     room_temps[:, [0, detect_sensor]] = room_temps[:, [detect_sensor, 0]]  # switch places
     plot_labels[[0, detect_sensor]] = plot_labels[[detect_sensor, 0]]
     X = create_batches(room_temps[:, :params['n_sensors']], params['n_timesteps'])
@@ -123,20 +117,38 @@ if __name__ == '__main__':
 
     model = FullClassifier_best(params['n_sensors']).float()  # load model
     print(model)
-    model, checkpoint = load_model(model, 'trained_models/FullClassifier3/FullClassifier3_sen8_ts40_iter031000 ')
-    params['epoch_0'] = checkpoint['epoch']
+    # model, checkpoint = load_model(model, 'trained_models/FClassifier_1/Fclassifier_1_sen8_ts40_iter019000')
+    # params['epoch_0'] = checkpoint['epoch']
 
-    params['criterion'] = T.nn.MSELoss()
-    # params['criterion'] = T.nn.BCELoss()
     device = 'cuda'
+    params['criterion'] = T.nn.MSELoss()
+    params['lr'] = 0.001
 
+    eval_full_classifier(model.eval().cpu(), train_X.cpu(), train_labels.cpu(), 1)
+    model = train(model.to(device), train_X.to(device), train_labels.to(device), eval_X.to(device), eval_labels.to(device), params, epochs=10000)
+    eval_full_classifier(model.eval().cpu(), train_X.cpu(), train_labels.cpu(), 0)
+    eval_full_classifier(model.eval().cpu(), eval_X.cpu(), eval_labels.cpu(), 0)
+    eval_full_classifier(model.eval().cpu(), ver_X.cpu(), ver_labels.cpu(), 0)
 
-    eval_full_classifier(model.cpu(), train_X.cpu(), train_labels.cpu(), 1)
-    eval_full_classifier(model.cpu(), eval_X.cpu(), eval_labels.cpu(), 1)
-    eval_full_classifier(model.cpu(), ver_X.cpu(), ver_labels.cpu(), 1)
+    params['criterion'] = T.nn.BCELoss()
+    params['lr'] = 0.0001
+    params['epoch_0'] = 10000
 
-    model = train(model.to(device), train_X.to(device), train_labels.to(device), eval_X.to(device), eval_labels.to(device), params)
-    eval_full_classifier(model.cpu(), train_X.cpu(), train_labels.cpu())
+    model = train(model.to(device), train_X.to(device), train_labels.to(device), eval_X.to(device),
+    eval_labels.to(device), params, epochs=5000)
+    eval_full_classifier(model.eval().cpu(), train_X.cpu(), train_labels.cpu(), 0)
+    eval_full_classifier(model.eval().cpu(), eval_X.cpu(), eval_labels.cpu(), 0)
+    eval_full_classifier(model.eval().cpu(), ver_X.cpu(), ver_labels.cpu(), 0)
+
+    params['criterion'] = T.nn.BCELoss()
+    params['lr'] = 0.000001
+    params['epoch_0'] = 15000
+
+    model = train(model.to(device), train_X.to(device), train_labels.to(device), eval_X.to(device),
+                  eval_labels.to(device), params, epochs=5000)
+    eval_full_classifier(model.eval().cpu(), train_X.cpu(), train_labels.cpu(), 1)
+    eval_full_classifier(model.eval().cpu(), eval_X.cpu(), eval_labels.cpu(), 1)
+    eval_full_classifier(model.eval().cpu(), ver_X.cpu(), ver_labels.cpu(), 1)
 
 
 # fault/healthy classifier training
