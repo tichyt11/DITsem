@@ -1,5 +1,4 @@
 import copy
-
 import numpy as np
 import pandas as pd
 import torch as T
@@ -43,41 +42,26 @@ def load_data(fpath='DataCSV.csv'):
     return data_values, data_labels, data_timestamps
 
 
-def create_batches(data_values, train_size):
+def generate_segments(data_values, segment_length):
     # takes in data_values == columns of sensor sequences and spits out a large batch of training data with length
-    # of sequences equal to train_size
+    # of sequences equal to segment_length
     # data_values has a data sequence in each column
     data_values = np.array(data_values)
-    n_X = data_values.shape[0] - train_size + 1  # total num of sub-sequences
+    n_X = data_values.shape[0] - segment_length + 1  # total num of sub-sequences
     if data_values.ndim > 1:  # multiple columns
-        trainX = np.array([data_values[i:i+train_size, :] for i in range(n_X)])
+        trainX = np.array([data_values[i:i+segment_length, :] for i in range(n_X)])
         trainX_T = T.from_numpy(trainX).float()
     else:
-        trainX = np.array([data_values[i:i + train_size] for i in range(n_X)])
+        trainX = np.array([data_values[i:i + segment_length] for i in range(n_X)])
         trainX_T = T.from_numpy(trainX).float()
         trainX_T = T.unsqueeze(trainX_T, dim=-1)
 
     return trainX_T
 
 
-def prepare_for_AE(data_values):
-    X = data_values  # training data
-    targets = T.unsqueeze(X[:, :, 0], 2)  # take first sensors as target
-    return X, targets
-
-
-def prepare_for_classifier(data_values):
-    X = data_values  # training data
-    p = X.size(0)//3  # partitions
-    lin_X = add_linear_error(X[:p, :, :])
-    outlier_X = add_outliers(X[p:2*p, :, :])
-    offset_X = add_offset_error(X[2*p:, :, :])
-    targets = T.cat((T.ones(X.size(0), 1), T.zeros(X.size(0), 1)), 0).float()
-    X = T.cat((X, lin_X, outlier_X, offset_X), 0)
-    return X, targets
-
-
 def prepare_for_full_classifier(data_values):
+    # takes the data (already split into segments) and creates 7 faulty copies of it with all the combinations of errors
+    # also create the appropriate labels [l_d, l_off, l_out]
     healthy = data_values  # training data
     lin_X = add_linear_error(healthy)
     off_X = add_offset_error(healthy)
@@ -102,8 +86,7 @@ def prepare_for_full_classifier(data_values):
 
 
 def add_linear_error(data_values, minslope=0.075, maxslope=0.1):
-# def add_linear_error(data_values, minslope=0.075, maxslope=0.15): # orig
-# def add_linear_error(data_values, minslope=0.2, maxslope=0.4):  # hum
+# def add_linear_error(data_values, minslope=0.2, maxslope=0.4):  # humidity errors
     # take in fault-free data and add a linear fcn
     faulty_data = copy.deepcopy(data_values)  # create a copy
 
@@ -118,8 +101,7 @@ def add_linear_error(data_values, minslope=0.075, maxslope=0.1):
 
 
 def add_offset_error(data_values, minval=1, maxval=2):
-# def add_offset_error(data_values, minval=2, maxval=3.5):  # orig
-# def add_offset_error(data_values, minval=7, maxval=15):  # hum
+# def add_offset_error(data_values, minval=7, maxval=15):  # humidity errors
     # take in fault-free data add offset error to first channel
     faulty_data = copy.deepcopy(data_values)  # create a copy
     offsets = minval + (maxval - minval)*T.rand(faulty_data.size(0), 1)
@@ -130,8 +112,8 @@ def add_offset_error(data_values, minval=1, maxval=2):
 
 
 def add_outliers(data_values, minval=2.5, maxval=3.5):
-# def add_outliers(data_values, minval=2.5, maxval=4):  # orig
-# def add_outliers(data_values, minval=7, maxval=15):  # hum
+# def add_outliers(data_values, minval=7, maxval=15):  # humidity errors
+    # takes the data segments in data_values and adds the outlier error to the first signal
     faulty_data = copy.deepcopy(data_values)  # create a copy
 
     indeces = T.randint(1, data_values.size(1) - 1, (data_values.size(0), 1)).flatten()  # random indeces
