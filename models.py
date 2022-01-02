@@ -32,6 +32,33 @@ class FullClassifier_best(nn.Module):  # 98 on training data
         return Y
 
 
+class newC(nn.Module):
+    def __init__(self, in_features=1, h1_size=32, h2_size=48, h3_size=48):
+        super(newC, self).__init__()
+        self.lin_h = T.nn.Linear(in_features, h1_size)
+        self.lin_c = T.nn.Linear(in_features, h1_size)
+        self.lstm = T.nn.LSTM(in_features, h1_size, 1, batch_first=True)
+
+        self.lin_1 = T.nn.Linear(h1_size, h2_size)
+        self.lin_2 = T.nn.Linear(h2_size, h3_size)
+        self.lin_out = T.nn.Linear(h3_size, 3)
+
+        T.nn.init.kaiming_normal_(self.lin_1.weight, mode='fan_in', nonlinearity='relu')
+        T.nn.init.kaiming_normal_(self.lin_2.weight, mode='fan_in', nonlinearity='relu')
+        T.nn.init.kaiming_normal_(self.lin_out.weight, mode='fan_in', nonlinearity='sigmoid')
+
+    def forward(self, X):
+        # encoder part
+        h0 = T.tanh(self.lin_h(X[:, 0, :])).unsqueeze(0)
+        c0 = T.tanh(self.lin_c(X[:, 0, :])).unsqueeze(0)
+        hns, _ = self.lstm(X, (h0, c0))[1]
+
+        h1 = T.relu(self.lin_1(hns[-1]))
+        h2 = T.relu(self.lin_2(h1))
+        Y = T.sigmoid(self.lin_out(h2))
+        return Y
+
+
 class Fclassifier_2(nn.Module):
     def __init__(self, in_features=1, h1_size=20, h2_size=32, h3_size=32):
         super(Fclassifier_2, self).__init__()

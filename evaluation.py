@@ -28,6 +28,9 @@ def plot_signals(data, labels=None):
     plt.xlabel('time [h]', fontsize=12)
     plt.ylabel('Temperature [°C]', fontsize=12)
     plt.legend(loc='upper left', fontsize=10)
+    # plt.legend(loc='upper left', fontsize=6)
+    # ax2 = plt.twinx()
+    # ax2.set_ylabel('Relative humidity', fontsize=12)
     plt.show()
 
 
@@ -100,6 +103,38 @@ def eval_full_classifier(model, X, labels, n_samples=1, plt_labels=None):
     print('average error: [{:.2f}, {:.2f}, {:.2f}]'.format(avg_abs_err[0], avg_abs_err[1], avg_abs_err[2]))
 
 
+def compute_confusion_matrices(model, X, labels, threshold=0.5):
+        with T.no_grad():
+            prediction = model.eval().forward(X)
+
+        predicted_labels = (prediction >= threshold) * 1  # values >= 0.5 -> True
+
+        print('drift confusion:')
+        print_conf_matrix(predicted_labels[:, 0], labels[:, 0], threshold)
+        print('offset confusion:')
+        print_conf_matrix(predicted_labels[:, 1], labels[:, 1], threshold)
+        print('outlier confusion:')
+        print_conf_matrix(predicted_labels[:, 2], labels[:, 2], threshold)
+
+
+def print_conf_matrix(prediction, labels, threshold=0.5):
+    # print confusion matrix based on 1/0 labels and their predictions
+    positives_pred = prediction[labels == 1]
+    true_positives = 100 * T.sum(positives_pred) / positives_pred.size(0)
+    false_negatives = 100 - true_positives
+
+    negatives_pred = prediction[labels == 0]
+    false_positives = 100 * T.sum(negatives_pred) / negatives_pred.size(0)
+    true_negatives = 100 - false_positives
+
+    print('     PP    PN')
+    print('P [{:.2f}, {:.2f}]\nN [{:.2f}, {:.2f}]'.format(true_positives, false_negatives, false_positives,
+                                                          true_negatives))
+
+    errors = T.abs(prediction - labels)
+    print('average error: {:.2f}'.format(T.mean(errors)))
+
+
 def visualize_folder_classifier(model, folder, X, labels, params):
     # go through a folder with stored model parameters and print the prediction accuracy for each one
     fnames = os.listdir(folder)  # there must be only params in the folder
@@ -127,13 +162,13 @@ def visualize_folder_classifier(model, folder, X, labels, params):
 
 if __name__=='__main__':
     params = {"epochs": 20000, "batchsize": 300, "lr": 0.007, "weight_decay": 0.0001, 'ID': 'ThirdTraining',
-              'n_e_info': 100, 'n_sensors': 8, 'n_timesteps': 40}
+              'n_e_info': 100, 'n_sensors': 8, 'n_timesteps': 30}
 
     # load data
     data_values, data_labels, data_timestamps = load_data('DataCSV.csv')
     room_temps = data_values[:, room_temp_columns]  # just the room temperatures in C
     room_temp_labels = data_labels[room_temp_columns]
-    room_temp_labels = ['Bedroom 1', 'Bedroom 2', 'Bedroom 3', 'Master Bedroom', 'Bathroom 1', 'Bathroom 2', 'Kitchen', 'Hall']
+    # room_temp_labels = ['Bedroom 1', 'Bedroom 2', 'Bedroom 3', 'Master Bedroom', 'Bathroom 1', 'Bathroom 2', 'Kitchen', 'Hall']
 
     # split into segments and add errors, create labels
     X = generate_segments(room_temps[:, :params['n_sensors']], params['n_timesteps'])
@@ -150,11 +185,12 @@ if __name__=='__main__':
     plot_signals(train_data[0 + 7937, :, :], room_temp_labels)
     plot_signals(train_X[7 * train_data.size(0) + 7937, :, :], room_temp_labels)
 
-    model = FullClassifier_best(params['n_sensors'])  # load model
-    print(model)
-    target_folder = 'trained_models/Experiment2'
-    visualize_folder_classifier(model, target_folder, eval_X, eval_labels, params)
+    # model = newC(params['n_sensors'])  # load model
+    # print(model)
+    # target_folder = 'trained_models/new'
+    # visualize_folder_classifier(model, target_folder, eval_X, eval_labels, params)
 
-    model, checkpoint = load_model(model, 'trained_models/Experiment2/FullClassifier_best_sen8_ts40_iter008000')
-    eval_full_classifier(model.eval().cpu(), ver_X.cpu(), ver_labels.cpu(), 1, room_temp_labels[:params['n_sensors']])
+    # model, checkpoint = load_model(model, 'trained_models/Experiment2/FullClassifier_best_sen8_ts35_iter010500')
+    # eval_full_classifier(model.eval().cpu(), ver_X.cpu(), ver_labels.cpu(), 1, room_temp_labels[:params['n_sensors']])
+    # compute_confusion_matrices(model.eval().cpu(), ver_X.cpu(), ver_labels.cpu(), 0.999)
 

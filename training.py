@@ -76,7 +76,7 @@ def train(training_model, train_X, train_target, eval_X, eval_target, params, ep
 
 
 params = {"batchsize": 8192, "lr": 0.001, "weight_decay": 0.0001, 'epoch_0': 0,
-            'n_e_info': 50, 'n_sensors': 8, 'n_timesteps': 40, 'target_folder': 'trained_models/Experiment2',
+            'n_e_info': 50, 'n_sensors': 10, 'n_timesteps': 30, 'target_folder': 'trained_models/new',
             'criterion': ''}
 
 if __name__ == '__main__':
@@ -86,7 +86,8 @@ if __name__ == '__main__':
     sensor_ids = np.append(room_temp_columns, outside_temp_column)
     room_temps = data_values[:, sensor_ids]  # just the room temperatures in C
     # plot_labels = np.array(data_labels[sensor_ids])
-    plot_labels = np.array(['Bedroom 1', 'Bedroom 2', 'Bedroom 3', 'Master Bedroom', 'Bathroom 1', 'Bathroom 2', 'Kitchen', 'Hall'])
+    plot_labels = np.array(['Bedroom 1', 'Bedroom 2', 'Bedroom 3', 'Master Bedroom', 'Bathroom 1', 'Bathroom 2',
+                            'Kitchen', 'Hall', 'Attic', 'Outside'])
     room_temps[:, [0, detect_sensor]] = room_temps[:, [detect_sensor, 0]]  # switch places
     plot_labels[[0, detect_sensor]] = plot_labels[[detect_sensor, 0]]
     X = generate_segments(room_temps[:, :params['n_sensors']], params['n_timesteps'])
@@ -110,33 +111,33 @@ if __name__ == '__main__':
     eval_X, eval_labels = prepare_for_full_classifier(eval_data)
     ver_X, ver_labels = prepare_for_full_classifier(ver_data)
 
-    model = FullClassifier_best(params['n_sensors']).float()  # load model
+    model = newC(params['n_sensors']).float()  # load model
     print(model)
-    model, checkpoint = load_model(model, 'trained_models/Experiment2/FullClassifier_best_sen8_ts40_iter006500')
+    model, checkpoint = load_model(model, 'trained_models/new/newC_sen10_ts30_iter024000')
     params['epoch_0'] = checkpoint['epoch']
 
     device = 'cuda'
 
-    # params['criterion'] = T.nn.BCELoss()
-    # params['lr'] = 0.001
-    #
-    # eval_full_classifier(model.eval().cpu(), train_X.cpu(), train_labels.cpu(), 1)
-    # model = train(model.to(device), train_X.to(device), train_labels.to(device), eval_X.to(device), eval_labels.to(device), params, epochs=5000)
+    params['criterion'] = T.nn.BCELoss()
+    params['lr'] = 0.0001
+
+    eval_full_classifier(model.eval().cpu(), train_X.cpu(), train_labels.cpu(), 1)
+    model = train(model.to(device), train_X.to(device), train_labels.to(device), eval_X.to(device), eval_labels.to(device), params, epochs=20000)
     eval_full_classifier(model.eval().cpu(), train_X.cpu(), train_labels.cpu(), 0)
     eval_full_classifier(model.eval().cpu(), eval_X.cpu(), eval_labels.cpu(), 0)
 
     params['criterion'] = T.nn.BCELoss()
     params['lr'] = 0.0001
-    # params['epoch_0'] = 10000
+    params['epoch_0'] = 10500
 
     model = train(model.to(device), train_X.to(device), train_labels.to(device), eval_X.to(device),
-    eval_labels.to(device), params, epochs=5000)
+    eval_labels.to(device), params, epochs=10000)
     eval_full_classifier(model.eval().cpu(), train_X.cpu(), train_labels.cpu(), 0)
     eval_full_classifier(model.eval().cpu(), eval_X.cpu(), eval_labels.cpu(), 0)
 
     params['criterion'] = T.nn.BCELoss()
     params['lr'] = 0.000001
-    params['epoch_0'] = 15000
+    params['epoch_0'] = 29500
 
     model = train(model.to(device), train_X.to(device), train_labels.to(device), eval_X.to(device),
                   eval_labels.to(device), params, epochs=5000)
